@@ -286,7 +286,7 @@ with st.sidebar:
     st.divider()
     st.header('Import / Export')
     template = st.file_uploader('Upload template to seed (optional)', type=['xlsx'])
-    if st.button('Seed DB from template'):
+    if st.button('Seed DB from template', key='seed_btn'):
         if template is None:
             st.warning('Upload the template first.')
         else:
@@ -297,7 +297,8 @@ with st.sidebar:
         'Export to Excel',
         data=export_to_excel_bytes(),
         file_name='GOALS_Export.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        key='export_btn'
     )
 
 labels = ['JFM GOAL (Overall)'] + [f"Monthly - {s}" for s in MONTHLY_SHEETS] + ([PERSONAL_SHEET_NAME] if PERSONAL_SHEET_NAME else [])
@@ -305,12 +306,17 @@ tabs = st.tabs(labels)
 
 with tabs[0]:
     st.subheader('JFM GOAL (Overall)')
-    st.write('Edit values per Objective and Team. Add new Objectives by adding rows.')
     grid = get_jfm_grid()
     if grid.empty:
         grid = pd.DataFrame([{JFM_OBJECTIVE_COL: '', **{t: '' for t in JFM_TEAM_COLS}}])
-    edited = st.data_editor(grid, use_container_width=True, num_rows='dynamic', hide_index=True)
-    if st.button('Save JFM GOAL changes', type='primary'):
+    edited = st.data_editor(
+        grid,
+        use_container_width=True,
+        num_rows='dynamic',
+        hide_index=True,
+        key='editor_jfm'
+    )
+    if st.button('Save JFM GOAL changes', type='primary', key='save_jfm'):
         save_jfm_grid(edited, updated_by.strip() or None)
         st.success('Saved JFM GOAL')
         st.rerun()
@@ -324,11 +330,16 @@ for i, sheet in enumerate(MONTHLY_SHEETS, start=1):
         else:
             metric_col = cols[1]
             month_cols = [str(c).strip() for c in cols[2:]]
-            st.write('Edit monthly values for each metric.')
             grid = get_monthly_grid(sheet)
             if grid.empty:
                 grid = pd.DataFrame([{metric_col: '', **{m: '' for m in month_cols}}])
-            edited = st.data_editor(grid, use_container_width=True, num_rows='dynamic', hide_index=True)
+            edited = st.data_editor(
+                grid,
+                use_container_width=True,
+                num_rows='dynamic',
+                hide_index=True,
+                key=f"editor_monthly_{sheet}"
+            )
             if st.button(f"Save {sheet} changes", key=f"save_{sheet}", type='primary'):
                 save_monthly_grid(sheet, edited, updated_by.strip() or None)
                 st.success(f"Saved {sheet}")
@@ -337,7 +348,6 @@ for i, sheet in enumerate(MONTHLY_SHEETS, start=1):
 if PERSONAL_SHEET_NAME:
     with tabs[-1]:
         st.subheader(PERSONAL_SHEET_NAME)
-        st.write('Enter personal/leadership goals. Category is optional (e.g., PROJECT, SSA, Other).')
         pdf = get_personal_goals()
         if pdf.empty:
             pdf = pd.DataFrame([{'ID': None, 'Category': '', 'Goal': '', 'Updated By': '', 'Updated At (UTC)': ''}])
@@ -350,16 +360,17 @@ if PERSONAL_SHEET_NAME:
                 'ID': st.column_config.NumberColumn(disabled=True),
                 'Updated By': st.column_config.TextColumn(disabled=True),
                 'Updated At (UTC)': st.column_config.TextColumn(disabled=True),
-            }
+            },
+            key='editor_personal'
         )
-        if st.button('Save personal goals', type='primary'):
+        if st.button('Save personal goals', type='primary', key='save_personal'):
             save_personal_goals(edited[['Category', 'Goal']], updated_by.strip() or None)
             st.success('Saved personal goals')
             st.rerun()
 
 with st.expander('Admin / Notes'):
     st.markdown(
-        """- Storage: SQLite file `goals_jfm.db` (configurable via env var `GOALS_DB_PATH`).
-- Fixes the unterminated string literal error using a triple-quoted markdown block.
+        """- Fixes `StreamlitDuplicateElementId` by giving each `st.data_editor` a unique `key`.
+- Storage: SQLite file `goals_jfm.db` (configurable via env var `GOALS_DB_PATH`).
 - Export produces an Excel with the same sheet names for easy sharing."""
     )
