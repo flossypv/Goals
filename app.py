@@ -11,14 +11,14 @@ import streamlit as st
 
 DB_PATH = os.getenv("GOALS_DB_PATH", "goals_jfm.db")
 
-# ---- Schema inferred from your uploaded workbook ----
+
+# ---- Schema inferred from your workbook ----
 JFM_OBJECTIVE_COL = 'Objectives'
 JFM_TEAM_COLS = ['MoHI', 'Canyon', 'Toyota', 'Ares QA']
-
 MONTHLY_SHEETS = ['MOHI', 'CANYON', 'TOYOTA', 'ARES QA']
 MONTHLY_SCHEMA = {'MOHI': ['MOHI', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3'], 'CANYON': ['CANYON', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3'], 'TOYOTA': ['TOYOTA', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3'], 'ARES QA': ['ARES QA', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3']}
-
 PERSONAL_SHEET_NAME = 'Flossy - JFM'
+
 
 
 def conn():
@@ -44,7 +44,6 @@ def init_db():
             );
             """
         )
-
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS monthly_goal (
@@ -59,7 +58,6 @@ def init_db():
             );
             """
         )
-
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS personal_goal (
@@ -131,7 +129,7 @@ def seed_from_template_bytes(xlsx_bytes: bytes):
         dfp = pd.read_excel(xls, sheet_name=PERSONAL_SHEET_NAME, header=None)
         current_cat = None
         with conn() as c:
-            for v in dfp.iloc[:,0].tolist():
+            for v in dfp.iloc[:, 0].tolist():
                 if pd.isna(v):
                     continue
                 s = str(v).strip()
@@ -152,7 +150,7 @@ def get_jfm_grid() -> pd.DataFrame:
         rows = c.execute("SELECT objective, team, value FROM jfm_goal").fetchall()
     if not rows:
         return pd.DataFrame(columns=[JFM_OBJECTIVE_COL] + list(JFM_TEAM_COLS))
-    df = pd.DataFrame(rows, columns=['objective','team','value'])
+    df = pd.DataFrame(rows, columns=['objective', 'team', 'value'])
     pivot = df.pivot(index='objective', columns='team', values='value').reset_index()
     pivot = pivot.rename(columns={'objective': JFM_OBJECTIVE_COL})
     for t in JFM_TEAM_COLS:
@@ -198,7 +196,7 @@ def get_monthly_grid(sheet: str) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=[metric_col] + month_cols)
 
-    df = pd.DataFrame(rows, columns=['metric','month','value'])
+    df = pd.DataFrame(rows, columns=['metric', 'month', 'value'])
     pivot = df.pivot(index='metric', columns='month', values='value').reset_index()
     pivot = pivot.rename(columns={'metric': metric_col})
 
@@ -242,7 +240,7 @@ def save_monthly_grid(sheet: str, grid: pd.DataFrame, updated_by: str | None):
 def get_personal_goals() -> pd.DataFrame:
     with conn() as c:
         rows = c.execute("SELECT id, category, goal, updated_by, updated_at_utc FROM personal_goal ORDER BY id").fetchall()
-    return pd.DataFrame(rows, columns=['ID','Category','Goal','Updated By','Updated At (UTC)'])
+    return pd.DataFrame(rows, columns=['ID', 'Category', 'Goal', 'Updated By', 'Updated At (UTC)'])
 
 
 def save_personal_goals(df: pd.DataFrame, updated_by: str | None):
@@ -250,10 +248,10 @@ def save_personal_goals(df: pd.DataFrame, updated_by: str | None):
     with conn() as c:
         c.execute("DELETE FROM personal_goal")
         for _, r in df.iterrows():
-            goal = str(r.get('Goal','')).strip()
+            goal = str(r.get('Goal', '')).strip()
             if not goal:
                 continue
-            cat = str(r.get('Category','')).strip() or None
+            cat = str(r.get('Category', '')).strip() or None
             c.execute(
                 "INSERT INTO personal_goal(category, goal, updated_by, updated_at_utc) VALUES (?,?,?,?)",
                 (cat, goal, updated_by, now)
@@ -270,7 +268,7 @@ def export_to_excel_bytes() -> bytes:
             if not grid.empty:
                 grid.to_excel(writer, sheet_name=s, index=False)
         if PERSONAL_SHEET_NAME:
-            get_personal_goals()[['Category','Goal']].to_excel(writer, sheet_name=PERSONAL_SHEET_NAME, index=False)
+            get_personal_goals()[['Category', 'Goal']].to_excel(writer, sheet_name=PERSONAL_SHEET_NAME, index=False)
     out.seek(0)
     return out.read()
 
@@ -310,7 +308,7 @@ with tabs[0]:
     st.write('Edit values per Objective and Team. Add new Objectives by adding rows.')
     grid = get_jfm_grid()
     if grid.empty:
-        grid = pd.DataFrame([{JFM_OBJECTIVE_COL: '', **{t:'' for t in JFM_TEAM_COLS}}])
+        grid = pd.DataFrame([{JFM_OBJECTIVE_COL: '', **{t: '' for t in JFM_TEAM_COLS}}])
     edited = st.data_editor(grid, use_container_width=True, num_rows='dynamic', hide_index=True)
     if st.button('Save JFM GOAL changes', type='primary'):
         save_jfm_grid(edited, updated_by.strip() or None)
@@ -329,7 +327,7 @@ for i, sheet in enumerate(MONTHLY_SHEETS, start=1):
             st.write('Edit monthly values for each metric.')
             grid = get_monthly_grid(sheet)
             if grid.empty:
-                grid = pd.DataFrame([{metric_col:'', **{m:'' for m in month_cols}}])
+                grid = pd.DataFrame([{metric_col: '', **{m: '' for m in month_cols}}])
             edited = st.data_editor(grid, use_container_width=True, num_rows='dynamic', hide_index=True)
             if st.button(f"Save {sheet} changes", key=f"save_{sheet}", type='primary'):
                 save_monthly_grid(sheet, edited, updated_by.strip() or None)
@@ -342,7 +340,7 @@ if PERSONAL_SHEET_NAME:
         st.write('Enter personal/leadership goals. Category is optional (e.g., PROJECT, SSA, Other).')
         pdf = get_personal_goals()
         if pdf.empty:
-            pdf = pd.DataFrame([{'ID':None,'Category':'','Goal':'','Updated By':'','Updated At (UTC)':''}])
+            pdf = pd.DataFrame([{'ID': None, 'Category': '', 'Goal': '', 'Updated By': '', 'Updated At (UTC)': ''}])
         edited = st.data_editor(
             pdf,
             use_container_width=True,
@@ -355,15 +353,13 @@ if PERSONAL_SHEET_NAME:
             }
         )
         if st.button('Save personal goals', type='primary'):
-            save_personal_goals(edited[['Category','Goal']], updated_by.strip() or None)
+            save_personal_goals(edited[['Category', 'Goal']], updated_by.strip() or None)
             st.success('Saved personal goals')
             st.rerun()
 
 with st.expander('Admin / Notes'):
     st.markdown(
-        "- Storage: SQLite file `goals_jfm.db` (configurable via env var `GOALS_DB_PATH`).
-"
-        "- Use the sidebar button **Seed DB from template** to preload objectives/metrics from the Excel template.
-"
-        "- Export produces an Excel with the same sheet names for easy sharing."
+        """- Storage: SQLite file `goals_jfm.db` (configurable via env var `GOALS_DB_PATH`).
+- Fixes the unterminated string literal error using a triple-quoted markdown block.
+- Export produces an Excel with the same sheet names for easy sharing."""
     )
